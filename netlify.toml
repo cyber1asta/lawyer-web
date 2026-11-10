@@ -1,0 +1,4 @@
+[build]
+  # Run pnpm through npx so the build works even where pnpm isn't preinstalled.
+  command = "npx -y pnpm@12.3.4 install --frozen-lockfile && npx -y pnpm@12.3.4 run build"
+  publish = ".next"
