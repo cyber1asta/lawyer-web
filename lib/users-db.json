@@ -1,0 +1,10 @@
+{
+  "users": [
+    {
+      "email": "takimohamed531@gmail.com",
+      "password": "takitaki123456",
+      "status": "active"
+    }
+  ],
+  "blocked": []
+}

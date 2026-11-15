@@ -1,6 +1,0 @@
-2026/11/08-16:39:41.275 cf8 Reusing MANIFEST C:\Users\ThinkPad\OneDrive\Music\project-main\.wwebjs_auth\session\Default\IndexedDB\https_web.whatsapp.com_0.indexeddb.leveldb/MANIFEST-000001
-2026/11/08-16:39:41.276 cf8 Recovering log #416
-2026/11/08-16:39:41.333 cf8 Reusing old log C:\Users\ThinkPad\OneDrive\Music\project-main\.wwebjs_auth\session\Default\IndexedDB\https_web.whatsapp.com_0.indexeddb.leveldb/000416.log 
-2026/11/08-17:10:49.096 2278 Level-0 table #428: started
-2026/11/08-17:10:49.171 2278 Level-0 table #428: 1201640 bytes OK
-2026/11/08-17:10:49.174 2278 Delete type=0 #416
