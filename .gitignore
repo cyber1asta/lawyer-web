@@ -27,4 +27,9 @@ yarn-error.log*
 next-env.d.ts
 
 .wwebjs_auth/
+<<<<<<< HEAD
 .wwebjs_cache/
+=======
+.wwebjs_cache/
+.open-next/
+>>>>>>> debbd568e0a0978a92029616c9d8b7614efe5fcc
