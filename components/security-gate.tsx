@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef, type FormEvent, type MouseEvent } from "react";
-import emailjs from "emailjs-com";
+import emailjs from "@emailjs/browser";
 
 /* ───────── الألوان ───────── */
 const LAYERS = 9;
