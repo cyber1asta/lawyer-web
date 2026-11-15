@@ -5,10 +5,7 @@ import { ToastProvider } from '@/components/feedback/toast-provider'
 import { ConfirmProvider } from '@/components/feedback/confirm-provider'
 import { StoreProvider } from '@/lib/store'
 import { AppShell } from '@/components/shell/app-shell'
-<<<<<<< HEAD
 import SecurityGate from '@/components/security-gate'
-=======
->>>>>>> debbd568e0a0978a92029616c9d8b7614efe5fcc
 import './globals.css'
 
 const cairo = Cairo({ subsets: ['arabic', 'latin'], variable: '--font-cairo', weight: ['400', '500', '600', '700', '800'] })
@@ -28,7 +25,6 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
   return (
     <html lang="ar-MA" dir="rtl" className={`${cairo.variable} ${tajawal.variable}`}>
       <body className="antialiased">
- HEAD
         <SecurityGate>
           <ToastProvider>
             <ConfirmProvider>
@@ -38,21 +34,8 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
             </ConfirmProvider>
           </ToastProvider>
         </SecurityGate>
-=======
-        <ToastProvider>
-          <ConfirmProvider>
-            <StoreProvider>
-              <AppShell>{children}</AppShell>
-            </StoreProvider>
-          </ConfirmProvider>
-        </ToastProvider>
- debbd568e0a0978a92029616c9d8b7614efe5fcc
         {process.env.NODE_ENV === 'production' && <Analytics />}
       </body>
     </html>
   )
- HEAD
 }
-=======
-}
- debbd568e0a0978a92029616c9d8b7614efe5fcc
