@@ -28,7 +28,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
   return (
     <html lang="ar-MA" dir="rtl" className={`${cairo.variable} ${tajawal.variable}`}>
       <body className="antialiased">
-<<<<<<< HEAD
+ HEAD
         <SecurityGate>
           <ToastProvider>
             <ConfirmProvider>
@@ -46,13 +46,13 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
             </StoreProvider>
           </ConfirmProvider>
         </ToastProvider>
->>>>>>> debbd568e0a0978a92029616c9d8b7614efe5fcc
+ debbd568e0a0978a92029616c9d8b7614efe5fcc
         {process.env.NODE_ENV === 'production' && <Analytics />}
       </body>
     </html>
   )
-<<<<<<< HEAD
+ HEAD
 }
 =======
 }
->>>>>>> debbd568e0a0978a92029616c9d8b7614efe5fcc
+ debbd568e0a0978a92029616c9d8b7614efe5fcc
