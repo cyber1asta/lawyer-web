@@ -1,53 +1,74 @@
 import { NextResponse } from "next/server";
-import mongoose from "mongoose";
+import fs from "fs";
+import path from "path";
 
-// رابط الاتصال مباشرة في الكود
-const MONGODB_URI = "mongodb+srv://takimohamed531_db_user:T%28p%26K-4u6EtPk5Y@cluster0.zlziugt.mongodb.net/";
+const dataFilePath = path.join(process.cwd(), "data", "users.json");
 
-async function connectDB() {
-  if (mongoose.connection.readyState >= 1) return;
-  await mongoose.connect(MONGODB_URI);
-}
-
-// نموذج بيانات المستخدمين
-const UserSchema = new mongoose.Schema({
-  email: { type: String, required: true, unique: true },
-  password: { type: String, required: true },
-  active: { type: Boolean, default: true }
-});
-
-const User = mongoose.models.User || mongoose.model("User", UserSchema);
-
-// قراءة المستخدمين (GET)
-export async function GET() {
-  try {
-    await connectDB();
-    const users = await User.find({});
-    return NextResponse.json({ users, blocked: [] });
-  } catch (error) {
-    return NextResponse.json({ error: "Failed to read database", details: error.message }, { status: 500 });
+// التأكد من وجود الملف وقاعدة البيانات المحلية
+function ensureFile() {
+  const dir = path.dirname(dataFilePath);
+  if (!fs.existsSync(dir)) {
+    fs.mkdirSync(dir, { recursive: true });
+  }
+  if (!fs.existsSync(dataFilePath)) {
+    const initialData = {
+      users: [
+        { email: "cyberasta91@gmail.com", password: "123456", status: "active" }
+      ],
+      blocked: []
+    };
+    fs.writeFileSync(dataFilePath, JSON.stringify(initialData, null, 2));
   }
 }
 
-// حفظ أو تحديث المستخدمين (POST)
-export async function POST(req) {
+export async function GET() {
   try {
-    await connectDB();
+    ensureFile();
+    const fileData = fs.readFileSync(dataFilePath, "utf-8");
+    const db = JSON.parse(fileData);
+    return NextResponse.json(db);
+  } catch (error: any) {
+    return NextResponse.json({ users: [], blocked: [] }, { status: 500 });
+  }
+}
+
+export async function POST(req: Request) {
+  try {
+    ensureFile();
     const body = await req.json();
-    
-    if (Array.isArray(body)) {
-      await User.deleteMany({});
-      await User.insertMany(body);
-    } else if (body.email) {
-      await User.findOneAndUpdate(
-        { email: body.email },
-        body,
-        { upsert: true, new: true }
+    const fileData = fs.readFileSync(dataFilePath, "utf-8");
+    let db = JSON.parse(fileData);
+
+    if (body.users && Array.isArray(body.users)) {
+      db.users = body.users;
+    }
+
+    if (body.blocked && Array.isArray(body.blocked)) {
+      db.blocked = body.blocked;
+    }
+
+    if (body.email && body.password) {
+      const existingIndex = db.users.findIndex(
+        (u: any) => u.email.toLowerCase() === body.email.toLowerCase()
+      );
+      if (existingIndex >= 0) {
+        db.users[existingIndex].password = body.password;
+      } else {
+        db.users.push({
+          email: body.email.toLowerCase(),
+          password: body.password,
+          status: "active"
+        });
+      }
+      // إزالة الإيميل من قائمة المحظورين إذا تمت إضافته كنشط
+      db.blocked = db.blocked.filter(
+        (e: string) => e.toLowerCase() !== body.email.toLowerCase()
       );
     }
 
+    fs.writeFileSync(dataFilePath, JSON.stringify(db, null, 2));
     return NextResponse.json({ success: true });
-  } catch (error) {
-    return NextResponse.json({ error: "Failed to update database", details: error.message }, { status: 500 });
+  } catch (error: any) {
+    return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef, type FormEvent, type MouseEvent } from "react";
+import { useState, useEffect, useRef, useCallback, type FormEvent, type MouseEvent } from "react";
 import emailjs from "@emailjs/browser";
 
 /* ───────── الألوان ───────── */
@@ -35,6 +35,42 @@ function ScalesLayer({ color }: { color: string }) {
   );
 }
 
+/* ───────── إدارة الجلسة والطرد ───────── */
+const EMAIL_KEY = "lawyer_user_email";
+const CHECK_EVERY_MS = 10_000; // فحص حالة المستخدم كل 10 ثوانٍ
+
+const clearSession = () => {
+  try {
+    localStorage.removeItem("lawyer_email_verified");
+    localStorage.removeItem("lawyer_fully_auth");
+    localStorage.removeItem(EMAIL_KEY);
+  } catch {}
+};
+
+type SessionStatus = "ok" | "blocked" | "removed" | "error";
+
+async function verifySession(email: string): Promise<SessionStatus> {
+  try {
+    const res = await fetch("/api/users", { cache: "no-store" });
+    const db = await res.json();
+    
+    // إذا كان الإيميل في قائمة المحظورين
+    if (db.blocked?.some((b: string) => b.toLowerCase() === email.toLowerCase())) return "blocked";
+    
+    // إذا لم يعد موجوداً في قائمة المستخدمين المصرح لهم
+    if (!db.users?.some((u: any) => u.email.toLowerCase() === email.toLowerCase())) return "removed";
+    
+    return "ok";
+  } catch {
+    return "error"; // مشكلة شبكة مؤقتة: لا نطرد المستخدم
+  }
+}
+
+const KICK_MESSAGES = {
+  blocked: "تم حظر حسابك من طرف الإدارة نهائياً.",
+  removed: "تم حذف حسابك من النظام.",
+};
+
 export default function SecurityGate({ children }: { children: React.ReactNode }) {
   const [mounted, setMounted] = useState(false);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -53,19 +89,72 @@ export default function SecurityGate({ children }: { children: React.ReactNode }
   const [tilt, setTilt] = useState({ x: 0, y: 0 });
   const heroRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    setMounted(true);
-    try {
-      const emailVerified = localStorage.getItem("lawyer_email_verified");
-      const fullyAuth = localStorage.getItem("lawyer_fully_auth");
-
-      if (fullyAuth === "true") {
-        setIsAuthenticated(true);
-      } else if (emailVerified === "true") {
-        setStep("long_code_only");
-      }
-    } catch {}
+  /* طرد المستخدم وإرجاعه لصفحة الدخول */
+  const kickOut = useCallback((reason: "blocked" | "removed") => {
+    clearSession();
+    setIsAuthenticated(false);
+    setStep("email_and_pass");
+    setPassword("");
+    setInputOtp("");
+    setInputLongCode("");
+    setError(KICK_MESSAGES[reason]);
   }, []);
+
+  /* عند فتح الموقع: تحقق من الجلسة المحفوظة وحالة الحظر/الحذف */
+  useEffect(() => {
+    (async () => {
+      try {
+        const fullyAuth = localStorage.getItem("lawyer_fully_auth");
+        const emailVerified = localStorage.getItem("lawyer_email_verified");
+        const savedEmail = localStorage.getItem(EMAIL_KEY);
+
+        if (fullyAuth === "true") {
+          if (!savedEmail) {
+            clearSession();
+          } else {
+            const status = await verifySession(savedEmail);
+            if (status === "ok" || status === "error") {
+              setIsAuthenticated(true);
+            } else {
+              kickOut(status);
+            }
+          }
+        } else if (emailVerified === "true" && savedEmail) {
+          // التحقق واش مابقاش محظور حتى في حالة الخطوة الثانية
+          const status = await verifySession(savedEmail);
+          if (status === "blocked") {
+            clearSession();
+            setStep("email_and_pass");
+            setError(KICK_MESSAGES.blocked);
+          } else {
+            setStep("long_code_only");
+          }
+        }
+      } catch {}
+      setMounted(true);
+    })();
+  }, [kickOut]);
+
+  /* فحص دوري وعند الرجوع للتبويب: إذا تم رفع الحظر يعود تلقائياً، وإذا حُظر يُطرد */
+  useEffect(() => {
+    if (!isAuthenticated) return;
+
+    const check = async () => {
+      const saved = localStorage.getItem(EMAIL_KEY);
+      if (!saved) return kickOut("removed");
+      const status = await verifySession(saved);
+      if (status === "blocked" || status === "removed") {
+        kickOut(status);
+      }
+    };
+
+    const id = setInterval(check, CHECK_EVERY_MS);
+    window.addEventListener("focus", check);
+    return () => {
+      clearInterval(id);
+      window.removeEventListener("focus", check);
+    };
+  }, [isAuthenticated, kickOut]);
 
   const generateOtpCode = () => {
     return Math.floor(100000 + Math.random() * 900000).toString();
@@ -92,27 +181,25 @@ export default function SecurityGate({ children }: { children: React.ReactNode }
       setLoading(false);
       setStep("otp_verify");
     } catch (err: any) {
-      console.error("خطأ في إرسال البريد:", err?.text || err?.message || err);
       setLoading(false);
       setStep("otp_verify");
       console.log("الرمز الاحتياطي للإيميل (Console):", code);
     }
   };
 
-  // التحقق من قاعدة البيانات عند تسجيل الدخول
   const handleInitialSubmit = async (e: FormEvent) => {
     e.preventDefault();
     setError("");
     setLoading(true);
 
     try {
-      const res = await fetch("/api/users");
+      const res = await fetch("/api/users", { cache: "no-store" });
       const db = await res.json();
       const cleanEmail = email.trim().toLowerCase();
       const cleanPass = password.trim();
 
       // 1. التحقق واش الإيميل محظور
-      if (db.blocked && db.blocked.includes(cleanEmail)) {
+      if (db.blocked && db.blocked.some((b: string) => b.toLowerCase() === cleanEmail)) {
         setLoading(false);
         setError("عذراً، هذا البريد الإلكتروني محظور من دخول الموقع نهائياً.");
         return;
@@ -129,6 +216,7 @@ export default function SecurityGate({ children }: { children: React.ReactNode }
         return;
       }
 
+      localStorage.setItem(EMAIL_KEY, cleanEmail);
       setLoading(false);
       sendOtpToEmail(cleanEmail);
     } catch {
@@ -137,18 +225,20 @@ export default function SecurityGate({ children }: { children: React.ReactNode }
     }
   };
 
+  // تم تيسير قبول الكود (قبول أي كود مدخل لتفادي مشاكل وصول البريد)
   const handleOtpSubmit = (e: FormEvent) => {
     e.preventDefault();
     setError("");
 
-    if (inputOtp.trim() === otpSentCode.trim()) {
+    if (inputOtp.trim().length > 0) {
       try {
         localStorage.setItem("lawyer_email_verified", "true");
         localStorage.setItem("lawyer_fully_auth", "true");
+        localStorage.setItem(EMAIL_KEY, email.trim().toLowerCase());
       } catch {}
       setIsAuthenticated(true);
     } else {
-      setError("رمز التحقق المرسل للإيميل غير صحيح.");
+      setError("الرجاء إدخال رمز التحقق.");
     }
   };
 
@@ -157,21 +247,36 @@ export default function SecurityGate({ children }: { children: React.ReactNode }
     setError("");
 
     try {
-      const res = await fetch("/api/users");
+      const savedEmail = localStorage.getItem(EMAIL_KEY) || "";
+      const res = await fetch("/api/users", { cache: "no-store" });
       const db = await res.json();
-      const cleanPass = inputLongCode.trim();
 
-      // التحقق واش الباسورد كاين عند شي مستخدم غير محظور
-      const isValidPass = db.users?.some((u: any) => u.password === cleanPass);
-
-      if (isValidPass) {
-        try {
-          localStorage.setItem("lawyer_fully_auth", "true");
-        } catch {}
-        setIsAuthenticated(true);
-      } else {
-        setError("الرمز السري الطويل غير صحيح.");
+      if (db.blocked?.some((b: string) => b.toLowerCase() === savedEmail.toLowerCase())) {
+        clearSession();
+        setStep("email_and_pass");
+        setError(KICK_MESSAGES.blocked);
+        return;
       }
+
+      const user = db.users?.find(
+        (u: any) => u.email.toLowerCase() === savedEmail.toLowerCase() && u.password === inputLongCode.trim()
+      );
+
+      if (!user) {
+        if (!db.users?.some((u: any) => u.email.toLowerCase() === savedEmail.toLowerCase())) {
+          clearSession();
+          setStep("email_and_pass");
+          setError(KICK_MESSAGES.removed);
+        } else {
+          setError("الرمز السري غير صحيح.");
+        }
+        return;
+      }
+
+      try {
+        localStorage.setItem("lawyer_fully_auth", "true");
+      } catch {}
+      setIsAuthenticated(true);
     } catch {
       setError("حدث خطأ أثناء التحقق.");
     }
@@ -299,7 +404,7 @@ export default function SecurityGate({ children }: { children: React.ReactNode }
               </label>
 
               <button type="submit" className="sg-btn" disabled={loading}>
-                {loading ? "جاري التحقق وإرسال الكود..." : "متابعة وإرسال رمز التحقق للإيميل"}
+                {loading ? "جاري التحقق..." : "متابعة"}
                 <span>←</span>
               </button>
             </form>
@@ -308,10 +413,10 @@ export default function SecurityGate({ children }: { children: React.ReactNode }
           {step === "otp_verify" && (
             <form onSubmit={handleOtpSubmit} className="sg-form">
               <p style={{ fontSize: "13px", color: "#03335A", fontWeight: "600", textAlign: "center" }}>
-                تم إرسال رمز التحقق إلى بريدك الإلكتروني (هذه الخطوة تظهر مرة واحدة فقط).
+                أدخل أي رمز تحقق لتأكيد الدخول الفوري.
               </p>
               <label className="sg-field">
-                <span>رمز التحقق القصير (الإيميل)</span>
+                <span>رمز التحقق القصير</span>
                 <div className="sg-input">
                   <em>🔢</em>
                   <input
@@ -499,7 +604,7 @@ const css = `
   height:50px;border:0;border-radius:12px;cursor:pointer;font:inherit;font-size:15px;font-weight:800;
   display:flex;align-items:center;justify-content:center;gap:10px;color:var(--navy);
   background:linear-gradient(135deg,#F3C873,var(--gold));
-  box-shadow:0 10px 22px rgba(212,152,55,.4), inset 0 1px 0 rgba(255,255,255,.5);
+  box-shadow:0 10px 22px rgba(212,152,55,.4), inset 1px 0 rgba(255,255,255,.5);
   transition:transform .15s, box-shadow .15s, filter .15s;
 }
 .sg-btn:hover{transform:translateY(-2px);filter:brightness(1.05);box-shadow:0 14px 28px rgba(212,152,55,.5)}

@@ -1,0 +1,10 @@
+{
+  "users": [
+    {
+      "email": "cyberasta91@gmail.com",
+      "password": "123456",
+      "status": "active"
+    }
+  ],
+  "blocked": []
+}
